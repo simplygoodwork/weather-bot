@@ -31,7 +31,7 @@ import { prompt } from "./prompt";
  * This Cloudflare worker handles all requests for the demo agent.
  */
 export default {
-  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/") {
