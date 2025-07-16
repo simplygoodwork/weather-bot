@@ -7,7 +7,7 @@ export interface Env {
   LINEAR_WEBHOOK_SECRET: string;
   REDIRECT_URI: string;
   ENVIRONMENT: string;
-  LINEAR_TOKENS: KVNamespace;
+  WEATHER_BOT_TOKENS: KVNamespace;
   OPENAI_API_KEY: string;
 }
 
@@ -22,7 +22,7 @@ interface OAuthTokenResponse {
 const OAUTH_TOKEN_KEY = "linear_oauth_token";
 
 import OpenAI from "openai";
-import { getCoordinates, getWeather } from "tools";
+import { getCoordinates, getWeather } from "./tools";
 import type { ChatCompletionMessageParam } from "openai/resources/index";
 import { type AgentSessionEventWebhookPayload, LinearClient, LinearWebhooks } from "@linear/sdk";
 import { prompt } from "./prompt";
@@ -34,6 +34,10 @@ export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
+    if (url.pathname === "/") {
+      return new Response("Weather bot says hello! 🌤️", { status: 200 });
+    }
+
     // Handle OAuth authorize route
     if (url.pathname === "/oauth/authorize") {
       return this.handleOAuthAuthorize(request, env);
@@ -44,17 +48,13 @@ export default {
       return this.handleOAuthCallback(request, env);
     }
 
-    if (request.method !== "POST") {
-      return new Response(null, { status: 405 });
-    }
-
     // Handle webhook route
-    if (url.pathname === "/webhook") {
-      if (!env.LINEAR_TOKENS) {
+    if (url.pathname === "/webhook" && request.method === "POST") {
+      if (!env.WEATHER_BOT_TOKENS) {
         return new Response("Linear tokens not found", { status: 500 });
       }
 
-      const token = await env.LINEAR_TOKENS.get(OAUTH_TOKEN_KEY);
+      const token = await env.WEATHER_BOT_TOKENS.get(OAUTH_TOKEN_KEY);
       if (!token) {
         return new Response("Linear OAuth token not found", { status: 500 });
       }
@@ -134,7 +134,7 @@ export default {
       const tokenData = (await tokenResponse.json()) as OAuthTokenResponse;
 
       // Store just the access token in KV
-      await env.LINEAR_TOKENS.put(OAUTH_TOKEN_KEY, tokenData.access_token);
+      await env.WEATHER_BOT_TOKENS.put(OAUTH_TOKEN_KEY, tokenData.access_token);
 
       return new Response(
         `
@@ -227,7 +227,7 @@ export default {
           await linearClient.createAgentActivity({
             agentSessionId,
             content: {
-              type: "observation",
+              type: "thought",
               body: response.replace("THINKING:", "").trim(),
             },
           });
@@ -341,7 +341,7 @@ export default {
           await linearClient.createAgentActivity({
             agentSessionId,
             content: {
-              type: "observation",
+              type: "thought",
               body: response || "Agent is processing...",
             },
           });
