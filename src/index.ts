@@ -12,11 +12,11 @@ export interface Env {
 }
 
 import OpenAI from "openai";
-import { getCoordinates, getWeather } from "./tools";
+import { getCoordinates, getWeather } from "./lib/agent/tools";
 import type { ChatCompletionMessageParam } from "openai/resources/index";
 import { type AgentSessionEventWebhookPayload, LinearClient, LinearWebhooks } from "@linear/sdk";
-import { prompt } from "./prompt";
-import { handleOAuthAuthorize, handleOAuthCallback, getOAuthToken } from "./oauth";
+import { prompt } from "./lib/agent/prompt";
+import { handleOAuthAuthorize, handleOAuthCallback, getOAuthToken } from "./lib/oauth";
 
 /**
  * This Cloudflare worker handles all requests for the demo agent.
