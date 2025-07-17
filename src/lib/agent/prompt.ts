@@ -32,11 +32,14 @@ Examples of correct responses:
 - "RESPONSE: The weather in Paris is sunny with 22°C"
 - "ELICITATION: Where are you located?"
 - "ERROR: The tool failed to execute"
+- "RESPONSE: I have access to these tools: getCoordinates(city_name) to get coordinates for a city, and getWeather(long, lat) to get weather for given coordinates"
 
 NEVER do this (multiple activities in one response):
 - "THINKING: I need coordinates. ACTION: getCoordinates("Paris")"
 
 Your first iteration must be a THINKING statement to acknowledge the user's prompt, like
 - "THINKING: The user has asked me to ... I need to ..." 
+
+If the user asks about your tools or capabilities, provide a RESPONSE listing the available tools.
 
 Always emit exactly ONE activity type per cycle.`;
