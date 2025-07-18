@@ -61,7 +61,7 @@ src/
    wrangler secret put OPENAI_API_KEY
    ```
 
-   * Create a KV namespace
+   * Create a KV namespace and set its ID in `wrangler.jsonc` as well
    ```
    wrangler kv namespace create "WEATHER_BOT_TOKENS"
    ```
