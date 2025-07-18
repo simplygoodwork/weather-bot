@@ -98,7 +98,7 @@ export default {
   ): Promise<void> {
     const agentClient = new AgentClient(linearAccessToken, openaiApiKey);
     const userPrompt = this.generateUserPrompt(webhook);
-    await agentClient.handleUserPrompt(userPrompt, webhook.agentSession.id);
+    await agentClient.handleUserPrompt(webhook.agentSession.id, userPrompt);
   },
 
   /**
@@ -109,12 +109,15 @@ export default {
    * @returns The user prompt.
    */
   generateUserPrompt(webhook: AgentSessionEventWebhookPayload): string {
-    if (webhook.action === "created") {
-      const issueTitle = webhook.agentSession.issue?.title;
-      const commentBody = webhook.agentSession.comment?.body;
+    const issueTitle = webhook.agentSession.issue?.title;
+    const commentBody = webhook.agentSession.comment?.body;
+    if (issueTitle && commentBody) {
       return `Issue: ${issueTitle}\n\nTask: ${commentBody}`;
-    } else {
-      return `Task: ${webhook.agentActivity?.content.body}`;
+    } else if (issueTitle) {
+      return `Task: ${issueTitle}`;
+    } else if (commentBody) {
+      return `Task: ${commentBody}`;
     }
+    return "";
   },
 };

@@ -22,19 +22,21 @@ export class AgentClient {
   }
 
   /**
-   * Handle an agentic loop for a user prompt tied to a Linear agent session.
-   * This function will call the OpenAI API to get a response, map the response to a Linear activity type,
-   * and create a Linear activity for the response.
-   * It will then execute the action if the response is an action, and add the result to the conversation history.
-   * It will continue the loop until the task is complete or the maximum iteration count is reached.
+   * Handle a user prompt by processing it through the agent.
    * @param userPrompt - The user prompt
    * @param agentSessionId - The Linear agent session ID
    */
-  public async handleUserPrompt(userPrompt: string, agentSessionId: string) {
+  public async handleUserPrompt(agentSessionId: string, userPrompt: string) {
+    // Generate more context for the LLM from previous activities in this agent session
+    const activities = await this.generateMessagesFromPreviousActivities(
+      agentSessionId
+    );
+
     const messages = [
       { role: "system", content: prompt },
-      { role: "user", content: userPrompt },
-    ] as ChatCompletionMessageParam[];
+      userPrompt ? { role: "user", content: userPrompt } : undefined,
+      ...activities,
+    ].filter(Boolean) as ChatCompletionMessageParam[];
 
     let taskComplete = false;
     let iterations = 0;
@@ -155,9 +157,12 @@ export class AgentClient {
       [L.AgentActivityType.Elicitation]: "ELICITATION:",
       [L.AgentActivityType.Error]: "ERROR:",
     } as const;
-    const type = Object.entries(typeToKeyword).find(([_, keyword]) =>
+    const mappedType = Object.entries(typeToKeyword).find(([_, keyword]) =>
       response.startsWith(keyword)
-    )?.[0] as L.AgentActivityType;
+    );
+    const type = mappedType?.[0]
+      ? (mappedType[0] as L.AgentActivityType)
+      : L.AgentActivityType.Thought;
 
     switch (type) {
       case L.AgentActivityType.Thought:
@@ -260,5 +265,55 @@ export class AgentClient {
         }`
       );
     }
+  }
+
+  /**
+   * Generate additional context for the LLM from previous activities in this agent session.
+   * In our case, we only consider user prompt and agent responses, but you can extend this logic as needed.
+   *
+   * @param agentSessionId - The Linear agent session ID
+   * @returns All activities for the agent session
+   */
+  private async generateMessagesFromPreviousActivities(
+    agentSessionId: string
+  ): Promise<ChatCompletionMessageParam[]> {
+    const agentSession = await this.linearClient.agentSession(agentSessionId);
+
+    // Get all activities with pagination
+    const allActivities = [];
+    let activitiesConnection = await agentSession.activities();
+    let hasNextPage = activitiesConnection.pageInfo.hasNextPage;
+
+    // Add first page of activities
+    allActivities.push(...activitiesConnection.nodes);
+
+    // Continue fetching while there are more pages
+    while (hasNextPage && activitiesConnection.pageInfo.endCursor) {
+      activitiesConnection = await agentSession.activities({
+        after: activitiesConnection.pageInfo.endCursor,
+      });
+      allActivities.push(...activitiesConnection.nodes);
+      hasNextPage = activitiesConnection.pageInfo.hasNextPage;
+    }
+
+    const activities: ChatCompletionMessageParam[] = [];
+    for (const activity of allActivities
+      .filter(
+        (activity) =>
+          activity.content.type === L.AgentActivityType.Prompt ||
+          activity.content.type === L.AgentActivityType.Response
+      )
+      .reverse()) {
+      const role =
+        activity.content.type === L.AgentActivityType.Prompt
+          ? "user"
+          : "assistant";
+      const typedContent = activity.content as
+        | L.AgentActivityPromptContent
+        | L.AgentActivityResponseContent;
+      const content = typedContent.body;
+      activities.push({ role, content });
+    }
+    return activities;
   }
 }
