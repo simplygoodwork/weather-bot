@@ -44,11 +44,6 @@ export default {
         return new Response("OpenAI API key not configured", { status: 500 });
       }
 
-      const token = await getOAuthToken(env);
-      if (!token) {
-        return new Response("Linear OAuth token not found", { status: 500 });
-      }
-
       try {
         // Verify that the webhook is valid and of a type we need to handle
         const text = await request.text();
@@ -64,15 +59,19 @@ export default {
           return new Response("Webhook received", { status: 200 });
         }
 
+        const webhook = parsedPayload as AgentSessionEventWebhookPayload;
+        const token = await getOAuthToken(env, webhook.organizationId);
+        if (!token) {
+          return new Response("Linear OAuth token not found", { status: 500 });
+        }
+
         // Use waitUntil to ensure async processing completes
         ctx.waitUntil(
-          this.handleWebhook(
-            parsedPayload as AgentSessionEventWebhookPayload,
-            token,
-            env.OPENAI_API_KEY
-          ).catch((error: unknown) => {
-            return new Response("Error handling webhook", { status: 500 });
-          })
+          this.handleWebhook(webhook, token, env.OPENAI_API_KEY).catch(
+            (error: unknown) => {
+              return new Response("Error handling webhook", { status: 500 });
+            }
+          )
         );
 
         // Return immediately to prevent timeout

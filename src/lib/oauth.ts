@@ -1,6 +1,15 @@
 import { OAuthTokenResponse } from "./types";
 
-const OAUTH_TOKEN_KEY = "linear_oauth_token";
+const OAUTH_TOKEN_KEY_PREFIX = "linear_oauth_token_";
+
+/**
+ * Generate a workspace-specific key for storing OAuth tokens
+ * @param workspaceId - The Linear workspace ID
+ * @returns The storage key
+ */
+function getWorkspaceTokenKey(workspaceId: string): string {
+  return `${OAUTH_TOKEN_KEY_PREFIX}${workspaceId}`;
+}
 
 /**
  * Handles the OAuth authorization request.
@@ -73,7 +82,12 @@ export async function handleOAuthCallback(
     }
 
     const tokenData = (await tokenResponse.json()) as OAuthTokenResponse;
-    await setOAuthToken(env, tokenData.access_token);
+
+    // Get workspace information using the access token
+    const workspaceInfo = await getWorkspaceInfo(tokenData.access_token);
+
+    // Store the token with workspace-specific key
+    await setOAuthToken(env, tokenData.access_token, workspaceInfo.id);
 
     return new Response(
       `
@@ -81,7 +95,8 @@ export async function handleOAuthCallback(
         <head><title>OAuth Success</title></head>
         <body>
           <h1>OAuth Authorization Successful!</h1>
-          <p>Access token received and stored securely. You can now interact with weather bot!</p>
+          <p>Access token received and stored securely for workspace: <strong>${workspaceInfo.name}</strong></p>
+          <p>You can now interact with weather bot!</p>
         </body>
       </html>
     `,
@@ -101,34 +116,118 @@ export async function handleOAuthCallback(
 }
 
 /**
- * Retrieves the stored OAuth token.
+ * Retrieves the stored OAuth token for a specific workspace.
  * This implementation uses a KV namespace to store the token.
  * @param env - The environment variables.
+ * @param workspaceId - The Linear workspace ID (optional, will try to find any token if not provided)
  * @returns The OAuth token.
  */
-export async function getOAuthToken(env: Env): Promise<string | null> {
+export async function getOAuthToken(
+  env: Env,
+  workspaceId: string
+): Promise<string | null> {
   if (!env.WEATHER_BOT_TOKENS) {
     return null;
   }
-  return await env.WEATHER_BOT_TOKENS.get(OAUTH_TOKEN_KEY);
+
+  if (workspaceId) {
+    // Get token for specific workspace
+    const key = getWorkspaceTokenKey(workspaceId);
+    return await env.WEATHER_BOT_TOKENS.get(key);
+  } else {
+    // Try to find any stored token (for backward compatibility)
+    // List all keys with our prefix and get the first one
+    const keys = await env.WEATHER_BOT_TOKENS.list({
+      prefix: OAUTH_TOKEN_KEY_PREFIX,
+    });
+    if (keys.keys.length > 0) {
+      return await env.WEATHER_BOT_TOKENS.get(keys.keys[0].name);
+    }
+    return null;
+  }
 }
 
 /**
- * Stores the OAuth token.
+ * Stores the OAuth token for a specific workspace.
  * This implementation uses a KV namespace to store the token.
  * @param env - The environment variables.
  * @param token - The OAuth token.
+ * @param workspaceId - The Linear workspace ID.
  */
-export async function setOAuthToken(env: Env, token: string): Promise<void> {
-  await env.WEATHER_BOT_TOKENS.put(OAUTH_TOKEN_KEY, token);
+export async function setOAuthToken(
+  env: Env,
+  token: string,
+  workspaceId: string
+): Promise<void> {
+  const key = getWorkspaceTokenKey(workspaceId);
+  await env.WEATHER_BOT_TOKENS.put(key, token);
 }
 
 /**
- * Checks if OAuth token exists.
+ * Checks if OAuth token exists for a specific workspace.
  * @param env - The environment variables.
+ * @param workspaceId - The Linear workspace ID (optional, will check for any token if not provided)
  * @returns True if the OAuth token exists, false otherwise.
  */
-export async function hasOAuthToken(env: Env): Promise<boolean> {
-  const token = await getOAuthToken(env);
+export async function hasOAuthToken(
+  env: Env,
+  workspaceId: string
+): Promise<boolean> {
+  const token = await getOAuthToken(env, workspaceId);
   return token !== null;
+}
+
+/**
+ * Get the workspace information from Linear using the access token
+ * @param accessToken - The Linear access token
+ * @returns The workspace information
+ */
+async function getWorkspaceInfo(
+  accessToken: string
+): Promise<{ id: string; name: string }> {
+  const response = await fetch("https://api.linear.app/graphql", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      query: `
+        query {
+          viewer {
+            organization {
+              id
+              name
+            }
+          }
+        }
+      `,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get workspace info: ${response.statusText}`);
+  }
+
+  const data = (await response.json()) as {
+    data?: {
+      viewer?: {
+        organization?: {
+          id: string;
+          name: string;
+        };
+      };
+    };
+  };
+
+  const organization = data.data?.viewer?.organization;
+
+  if (!organization) {
+    throw new Error("No organization found in response");
+  }
+
+  return {
+    id: organization.id,
+    name: organization.name,
+  };
 }
