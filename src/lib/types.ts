@@ -38,3 +38,14 @@ export type ToolName = "getCoordinates" | "getWeather";
 export const isToolName = (value: string): value is ToolName => {
   return value === "getCoordinates" || value === "getWeather";
 };
+
+/**
+ * OAuth response from Linear.
+ */
+export interface OAuthTokenResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  refresh_token?: string;
+  scope?: string;
+}

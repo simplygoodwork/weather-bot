@@ -1,16 +1,3 @@
-/**
- * Environment variables for the demo agent.
- */
-export interface Env {
-  LINEAR_CLIENT_ID: string;
-  LINEAR_CLIENT_SECRET: string;
-  LINEAR_WEBHOOK_SECRET: string;
-  REDIRECT_URI: string;
-  ENVIRONMENT: string;
-  WEATHER_BOT_TOKENS: KVNamespace;
-  OPENAI_API_KEY: string;
-}
-
 import {
   type AgentSessionEventWebhookPayload,
   LinearWebhooks,
