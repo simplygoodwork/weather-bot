@@ -102,6 +102,6 @@ npm run dev
     - Handle converting the agent's response into a Linear activity based on your custom prompt
     - Handle additional webhooks involving your agent
 
-### License
+## License
 
 This project is licensed under the MIT License.
