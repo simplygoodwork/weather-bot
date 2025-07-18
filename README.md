@@ -85,15 +85,15 @@ src/
 npm run dev
 ```
 
-### Code Structure
+## Code Structure
 
-## API Endpoints
+### API Endpoints
 
 - `POST /webhook` - Endpoint that receives Linear webhooks for `AgentSession` and `AgentActivity` creation
 - `GET /oauth/authorize` - OAuth authorization endpoint
 - `GET /oauth/callback` - OAuth callback handler
 
-## Usage
+### Usage
 
 1. Fork the repository
 2. Create a feature branch
@@ -102,6 +102,6 @@ npm run dev
     - Handle converting the agent's response into a Linear activity based on your custom prompt
     - Handle additional webhooks involving your agent
 
-## License
+### License
 
 This project is licensed under the MIT License.
