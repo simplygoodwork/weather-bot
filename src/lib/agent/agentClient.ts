@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { LinearClient, LinearDocument as L } from "@linear/sdk";
 import type { ChatCompletionMessageParam } from "openai/resources/index";
-import { getCoordinates, getWeather } from "./tools";
+import { getCoordinates, getWeather, getTime } from "./tools";
 import { prompt } from "./prompt";
 import { Content, isToolName, ToolName, UnreachableCaseError } from "../types";
 
@@ -213,10 +213,25 @@ export class AgentClient {
           !isNaN(paramParts[1])
         ) {
           const lat = paramParts[0]!;
-          const lng = paramParts[1]!;
-          return JSON.stringify(await getWeather(lng, lat));
+          const long = paramParts[1]!;
+          return JSON.stringify(await getWeather({ lat, long }));
         } else {
           throw new Error("Invalid parameter for getWeather action");
+        }
+      case "getTime":
+        const timeParamParts = parameter
+          .split(",")
+          .map((p: string) => parseFloat(p.trim()));
+        if (
+          timeParamParts.length >= 2 &&
+          !isNaN(timeParamParts[0]) &&
+          !isNaN(timeParamParts[1])
+        ) {
+          const lat = timeParamParts[0]!;
+          const long = timeParamParts[1]!;
+          return await getTime({ lat, long });
+        } else {
+          throw new Error("Invalid parameter for getTime action");
         }
       default:
         throw new UnreachableCaseError(action);

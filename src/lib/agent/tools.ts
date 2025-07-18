@@ -5,10 +5,14 @@
  */
 export const getCoordinates = async (
   city_name: string
-): Promise<{ lat: number; lon: number; displayName: string } | { error: string }> => {
+): Promise<
+  { lat: number; lon: number; displayName: string } | { error: string }
+> => {
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city_name)}&format=jsonv2`,
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+        city_name
+      )}&format=jsonv2`,
       {
         headers: {
           "User-Agent": "Linear-Demo-Agent/1.0 (https://demo-agent.linear.dev)",
@@ -23,7 +27,11 @@ export const getCoordinates = async (
       };
     }
 
-    const data = (await response.json()) as { lat: string; lon: string; display_name: string }[];
+    const data = (await response.json()) as {
+      lat: string;
+      lon: string;
+      display_name: string;
+    }[];
 
     if (data && data.length > 0) {
       const result = data[0];
@@ -37,18 +45,24 @@ export const getCoordinates = async (
     }
   } catch (error) {
     return {
-      error: `Failed to get coordinates: ${error instanceof Error ? error.message : "Unknown error"}`,
+      error: `Failed to get coordinates: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
     };
   }
 };
 
 /**
  * Get the weather for a given location
- * @param long - The longitude of the location
  * @param lat - The latitude of the location
+ * @param long - The longitude of the location
  * @returns The weather for the given location
  */
-export const getWeather = async (long: number, lat: number): Promise<string> => {
+export const getWeather = async (params: {
+  lat: number;
+  long: number;
+}): Promise<string> => {
+  const { lat, long } = params;
   try {
     const response = await fetch(
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${long}&current=temperature_2m,weathercode`
@@ -101,6 +115,59 @@ export const getWeather = async (long: number, lat: number): Promise<string> => 
       return "Weather data not available";
     }
   } catch (error) {
-    return `Failed to get weather: ${error instanceof Error ? error.message : "Unknown error"}`;
+    return `Failed to get weather: ${
+      error instanceof Error ? error.message : "Unknown error"
+    }`;
+  }
+};
+
+/**
+ * Get the current time for a given location
+ * @param lat - The latitude of the location
+ * @param long - The longitude of the location
+ * @returns The current time for the given location
+ */
+export const getTime = async (params: {
+  lat: number;
+  long: number;
+}): Promise<string> => {
+  const { lat, long } = params;
+  try {
+    const controller = new AbortController();
+    // 60 second timeout because this free time API is very slow!
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    const response = await fetch(
+      `https://timeapi.io/api/Time/current/coordinate?latitude=${lat}&longitude=${long}`,
+      {
+        signal: controller.signal,
+      }
+    );
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      return `Time API error: ${response.status} ${response.statusText}`;
+    }
+
+    const data = (await response.json()) as {
+      date: string;
+      time: string;
+      timeZone: string;
+      dayOfWeek: string;
+      dstActive: boolean;
+    };
+
+    if (data) {
+      const { date, time, timeZone, dayOfWeek, dstActive } = data;
+      const dstStatus = dstActive ? " (DST active)" : "";
+      return `${dayOfWeek}, ${date} at ${time} ${timeZone}${dstStatus}`;
+    } else {
+      return "Time data not available";
+    }
+  } catch (error) {
+    return `Failed to get time: ${
+      error instanceof Error ? error.message : "Unknown error"
+    }`;
   }
 };
