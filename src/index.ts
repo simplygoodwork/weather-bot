@@ -13,7 +13,11 @@ import { AgentClient } from "./lib/agent/agentClient";
  * This Cloudflare worker handles all requests for the demo agent.
  */
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext
+  ): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/") {
@@ -32,56 +36,70 @@ export default {
 
     // Handle webhook route
     if (url.pathname === "/webhook" && request.method === "POST") {
+      if (!env.LINEAR_WEBHOOK_SECRET) {
+        return new Response("Webhook secret not configured", { status: 500 });
+      }
+
+      if (!env.OPENAI_API_KEY) {
+        return new Response("OpenAI API key not configured", { status: 500 });
+      }
+
       const token = await getOAuthToken(env);
       if (!token) {
         return new Response("Linear OAuth token not found", { status: 500 });
       }
 
-      const linearWebhooks = new LinearWebhooks(env.LINEAR_WEBHOOK_SECRET);
-      await this.handleWebhook(
-        request,
-        linearWebhooks,
-        token,
-        env.OPENAI_API_KEY
-      );
+      try {
+        // Verify that the webhook is valid and of a type we need to handle
+        const text = await request.text();
+        const payloadBuffer = Buffer.from(text);
+        const linearSignature = request.headers.get("linear-signature") || "";
+        const linearWebhooks = new LinearWebhooks(env.LINEAR_WEBHOOK_SECRET);
+        const parsedPayload = linearWebhooks.parseData(
+          payloadBuffer,
+          linearSignature
+        );
+
+        if (parsedPayload.type !== "AgentSessionEvent") {
+          return new Response("Webhook received", { status: 200 });
+        }
+
+        // Use waitUntil to ensure async processing completes
+        ctx.waitUntil(
+          this.handleWebhook(
+            parsedPayload as AgentSessionEventWebhookPayload,
+            token,
+            env.OPENAI_API_KEY
+          ).catch((error: unknown) => {
+            return new Response("Error handling webhook", { status: 500 });
+          })
+        );
+
+        // Return immediately to prevent timeout
+        return new Response("Webhook handled", { status: 200 });
+      } catch (error) {
+        return new Response("Error handling webhook", { status: 500 });
+      }
     }
 
     return new Response("OK", { status: 200 });
   },
 
   /**
-   * Handle a Linear webhook.
-   * @param request The request object.
-   * @param linearWebhooks The Linear webhooks class, used to parse the webhook payload.
+   * Handle a Linear webhook asynchronously (for non-blocking processing).
+   * @param webhook The agent session event webhook payload.
    * @param linearAccessToken The Linear access token.
    * @param openaiApiKey The OpenAI API key.
    * @returns A promise that resolves when the webhook is handled.
    */
   async handleWebhook(
-    request: Request,
-    linearWebhooks: LinearWebhooks,
+    webhook: AgentSessionEventWebhookPayload,
     linearAccessToken: string,
     openaiApiKey: string
   ): Promise<void> {
-    const text = await request.text();
-    const payloadBuffer = Buffer.from(text);
-    const parsedPayload = linearWebhooks.parseData(
-      payloadBuffer,
-      request.headers.get("linear-signature") || ""
-    );
-
-    if (parsedPayload.type !== "AgentSessionEvent") {
-      return;
-    }
-
-    const webhook = parsedPayload as AgentSessionEventWebhookPayload;
     const agentClient = new AgentClient(linearAccessToken, openaiApiKey);
-    console.log("Webhook:", webhook);
-    await agentClient.handleUserPrompt(
-      this.generateUserPrompt(webhook),
-      webhook.agentSession.id
-    );
-    return;
+    const userPrompt = this.generateUserPrompt(webhook);
+    await agentClient.handleUserPrompt(userPrompt, webhook.agentSession.id);
   },
 
   /**
