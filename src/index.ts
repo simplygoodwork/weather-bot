@@ -62,6 +62,14 @@ export default {
     return new Response("OK", { status: 200 });
   },
 
+  /**
+   * Handle a Linear webhook.
+   * @param request The request object.
+   * @param linearWebhooks The Linear webhooks class, used to parse the webhook payload.
+   * @param linearAccessToken The Linear access token.
+   * @param openaiApiKey The OpenAI API key.
+   * @returns A promise that resolves when the webhook is handled.
+   */
   async handleWebhook(
     request: Request,
     linearWebhooks: LinearWebhooks,
@@ -79,16 +87,30 @@ export default {
       return;
     }
 
-    // Type the payload as AgentSessionEventWebhookPayload
     const webhook = parsedPayload as AgentSessionEventWebhookPayload;
-
     const agentClient = new AgentClient(linearAccessToken, openaiApiKey);
+    console.log("Webhook:", webhook);
     await agentClient.handleUserPrompt(
-      webhook.agentActivity?.content.body ||
-        webhook.agentSession.comment?.body ||
-        "",
+      this.generateUserPrompt(webhook),
       webhook.agentSession.id
     );
     return;
+  },
+
+  /**
+   * Generate a user prompt for the agent based on the webhook payload.
+   * Modify this as needed if you want to give the agent more context by querying additional APIs.
+   *
+   * @param webhook The webhook payload.
+   * @returns The user prompt.
+   */
+  generateUserPrompt(webhook: AgentSessionEventWebhookPayload): string {
+    if (webhook.action === "created") {
+      const issueTitle = webhook.agentSession.issue?.title;
+      const commentBody = webhook.agentSession.comment?.body;
+      return `Issue: ${issueTitle}\n\nTask: ${commentBody}`;
+    } else {
+      return `Task: ${webhook.agentActivity?.content.body}`;
+    }
   },
 };
