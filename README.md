@@ -1,6 +1,8 @@
 # Weather Bot
 
-A simple agent powered by OpenAI that integrates with Linear to provide current weather and time information. The bot can look up coordinates for cities, get current weather conditions, and provide local time information for any location. It responds to `AgentSession` webhooks from Linear and creates `AgentActivity` entries in response to prompts from users in Linear.
+A simple agent powered by OpenAI that integrates with Linear to provide current weather and time information. The bot is set up to be deployed to a Cloudflare worker.
+
+The bot can look up coordinates for cities, get current weather conditions, and provide local time information for any location. It responds to `AgentSession` webhooks from Linear and creates `AgentActivity` entries in response to prompts from users in Linear.
 
 ## Tools Available
 
