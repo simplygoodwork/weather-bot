@@ -112,9 +112,11 @@ export const getWeather = async (params: {
       const weatherDescription = getWeatherDescription(weathercode);
       return `${temperature_2m}°C, ${weatherDescription}`;
     } else {
+      console.log("Weather data not available", data);
       return "Weather data not available";
     }
   } catch (error) {
+    console.log("Error getting weather", error);
     return `Failed to get weather: ${
       error instanceof Error ? error.message : "Unknown error"
     }`;
@@ -163,9 +165,11 @@ export const getTime = async (params: {
       const dstStatus = dstActive ? " (DST active)" : "";
       return `${dayOfWeek}, ${date} at ${time} ${timeZone}${dstStatus}`;
     } else {
+      console.log("Time data not available", data);
       return "Time data not available";
     }
   } catch (error) {
+    console.log("Error getting time", error);
     return `Failed to get time: ${
       error instanceof Error ? error.message : "Unknown error"
     }`;
