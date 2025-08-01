@@ -74,9 +74,14 @@ src/
 ### Linear OAuth Setup
 
 1. Create a new OAuth app in Linear
-2. Set the redirect URI to your deployed worker URL + `/oauth/callback`
-3. Enable webhooks, and subscribe to agent session webhooks (and app user notification webhooks, if you'd like)
-4. Copy the client ID, client secret, and webhook signing secret to use in your Cloudflare worker
+2. Set the redirect URI to `https://<your-worker-url>/oauth/callback`
+3. Enable webhooks and set the webhook endpoint to `https://<your-worker-url>/oauth/webhook`
+4. Subscribe to agent session webhooks (and app user notification webhooks, if you'd like)
+5. Copy the client ID, client secret, and webhook signing secret to use in your Cloudflare worker
+
+## Installation
+
+Once you've finished setting things up in both Linear and Cloudflare, visit `https://<your-worker-url>/oauth/authorize` to initiate OAuth between Weather Bot and Linear. This will install Weather Bot in your Linear workspace with an `actor=app` OAuth token.
 
 ## Development
 
