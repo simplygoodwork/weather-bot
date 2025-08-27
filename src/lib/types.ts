@@ -48,6 +48,15 @@ export interface OAuthTokenResponse {
   access_token: string;
   token_type: string;
   expires_in: number;
-  refresh_token?: string;
+  refresh_token: string;
   scope?: string;
+}
+
+/**
+ * Stored token data that includes both access and refresh tokens with expiry information.
+ */
+export interface StoredTokenData {
+  access_token: string;
+  refresh_token: string;
+  expires_at: number; // Unix timestamp
 }

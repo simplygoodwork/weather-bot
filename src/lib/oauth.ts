@@ -1,4 +1,4 @@
-import { OAuthTokenResponse } from "./types";
+import { OAuthTokenResponse, StoredTokenData } from "./types";
 
 const OAUTH_TOKEN_KEY_PREFIX = "linear_oauth_token_";
 
@@ -86,8 +86,15 @@ export async function handleOAuthCallback(
     // Get workspace information using the access token
     const workspaceInfo = await getWorkspaceInfo(tokenData.access_token);
 
-    // Store the token with workspace-specific key
-    await setOAuthToken(env, tokenData.access_token, workspaceInfo.id);
+    // Create stored token data with expiry information
+    const storedTokenData: StoredTokenData = {
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      expires_at: Date.now() + tokenData.expires_in * 1000, // Convert seconds to milliseconds and add to current time
+    };
+
+    // Store the token data with workspace-specific key
+    await setOAuthTokenData(env, storedTokenData, workspaceInfo.id);
 
     return new Response(
       `
@@ -116,11 +123,11 @@ export async function handleOAuthCallback(
 }
 
 /**
- * Retrieves the stored OAuth token for a specific workspace.
+ * Retrieves the stored OAuth token for a specific workspace, automatically refreshing if expired.
  * This implementation uses a KV namespace to store the token.
  * @param env - The environment variables.
- * @param workspaceId - The Linear workspace ID (optional, will try to find any token if not provided)
- * @returns The OAuth token.
+ * @param workspaceId - The Linear workspace ID
+ * @returns The OAuth access token.
  */
 export async function getOAuthToken(
   env: Env,
@@ -130,44 +137,90 @@ export async function getOAuthToken(
     return null;
   }
 
-  if (workspaceId) {
-    // Get token for specific workspace
+  try {
     const key = getWorkspaceTokenKey(workspaceId);
-    return await env.WEATHER_BOT_TOKENS.get(key);
-  } else {
-    // Try to find any stored token (for backward compatibility)
-    // List all keys with our prefix and get the first one
-    const keys = await env.WEATHER_BOT_TOKENS.list({
-      prefix: OAUTH_TOKEN_KEY_PREFIX,
-    });
-    if (keys.keys.length > 0) {
-      return await env.WEATHER_BOT_TOKENS.get(keys.keys[0].name);
+    const storedData = await env.WEATHER_BOT_TOKENS.get(key);
+
+    if (!storedData) {
+      return null;
     }
+
+    // Try to parse as JSON (new format)
+    let tokenData: StoredTokenData;
+    try {
+      tokenData = JSON.parse(storedData) as StoredTokenData;
+    } catch {
+      // If parsing fails, treat as legacy string token
+      console.warn("Found legacy token format, treating as expired");
+      return null;
+    }
+
+    // Check if token is expired (with 5 minute buffer)
+    const bufferTime = 5 * 60 * 1000; // 5 minutes in milliseconds
+    const isExpired = Date.now() >= tokenData.expires_at - bufferTime;
+
+    if (!isExpired) {
+      // Token is still valid
+      return tokenData.access_token;
+    }
+
+    // Token is expired, try to refresh
+    if (!tokenData.refresh_token) {
+      console.error("Token expired and no refresh token available");
+      return null;
+    }
+
+    try {
+      console.log("Access token expired, refreshing...");
+      const refreshedTokenData = await refreshAccessToken(
+        env,
+        tokenData.refresh_token
+      );
+
+      // Update stored token data
+      const newStoredTokenData: StoredTokenData = {
+        access_token: refreshedTokenData.access_token,
+        refresh_token: refreshedTokenData.refresh_token,
+        expires_at: Date.now() + refreshedTokenData.expires_in * 1000,
+      };
+
+      // Store the refreshed token
+      await setOAuthTokenData(env, newStoredTokenData, workspaceId);
+
+      console.log("Token refreshed successfully");
+      return newStoredTokenData.access_token;
+    } catch (refreshError) {
+      console.error("Failed to refresh token:", refreshError);
+      return null;
+    }
+  } catch (error) {
+    console.error("Error retrieving OAuth token:", error);
     return null;
   }
 }
 
 /**
- * Stores the OAuth token for a specific workspace.
- * This implementation uses a KV namespace to store the token.
+ * Stores the OAuth token data for a specific workspace.
+ * This implementation uses a KV namespace to store the token data.
  * @param env - The environment variables.
- * @param token - The OAuth token.
+ * @param tokenData - The OAuth token data including access token, refresh token, and expiry.
  * @param workspaceId - The Linear workspace ID.
  */
-export async function setOAuthToken(
+export async function setOAuthTokenData(
   env: Env,
-  token: string,
+  tokenData: StoredTokenData,
   workspaceId: string
 ): Promise<void> {
   const key = getWorkspaceTokenKey(workspaceId);
-  await env.WEATHER_BOT_TOKENS.put(key, token);
+  await env.WEATHER_BOT_TOKENS.put(key, JSON.stringify(tokenData));
 }
 
 /**
- * Checks if OAuth token exists for a specific workspace.
+ * Checks if OAuth token exists and is valid for a specific workspace.
+ * This will attempt to refresh the token if it's expired.
  * @param env - The environment variables.
- * @param workspaceId - The Linear workspace ID (optional, will check for any token if not provided)
- * @returns True if the OAuth token exists, false otherwise.
+ * @param workspaceId - The Linear workspace ID
+ * @returns True if a valid OAuth token exists, false otherwise.
  */
 export async function hasOAuthToken(
   env: Env,
@@ -175,6 +228,35 @@ export async function hasOAuthToken(
 ): Promise<boolean> {
   const token = await getOAuthToken(env, workspaceId);
   return token !== null;
+}
+
+/**
+ * Refresh an expired access token using the refresh token
+ * @param env - The environment variables
+ * @param refreshToken - The refresh token
+ * @returns The new token data
+ */
+async function refreshAccessToken(
+  env: Env,
+  refreshToken: string
+): Promise<OAuthTokenResponse> {
+  const response = await fetch("https://api.linear.app/oauth/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Token refresh failed: ${errorText}`);
+  }
+
+  return (await response.json()) as OAuthTokenResponse;
 }
 
 /**
