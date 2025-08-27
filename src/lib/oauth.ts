@@ -247,6 +247,8 @@ async function refreshAccessToken(
     },
     body: new URLSearchParams({
       grant_type: "refresh_token",
+      client_id: env.LINEAR_CLIENT_ID,
+      client_secret: env.LINEAR_CLIENT_SECRET,
       refresh_token: refreshToken,
     }),
   });
