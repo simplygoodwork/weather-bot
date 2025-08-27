@@ -91,8 +91,6 @@ export async function handleOAuthCallback(
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token,
       expires_at: Date.now() + tokenData.expires_in * 1000, // Convert seconds to milliseconds and add to current time
-      token_type: tokenData.token_type,
-      scope: tokenData.scope,
     };
 
     // Store the token data with workspace-specific key
@@ -184,8 +182,6 @@ export async function getOAuthToken(
         access_token: refreshedTokenData.access_token,
         refresh_token: refreshedTokenData.refresh_token,
         expires_at: Date.now() + refreshedTokenData.expires_in * 1000,
-        token_type: refreshedTokenData.token_type,
-        scope: refreshedTokenData.scope,
       };
 
       // Store the refreshed token

@@ -59,6 +59,4 @@ export interface StoredTokenData {
   access_token: string;
   refresh_token: string;
   expires_at: number; // Unix timestamp
-  token_type: string;
-  scope?: string;
 }
