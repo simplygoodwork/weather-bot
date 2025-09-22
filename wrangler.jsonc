@@ -16,7 +16,7 @@
       "enabled": true,
     },
     "vars": {
-      "LINEAR_CLIENT_ID": "<your-linear-client-id>",
-      "WORKER_URL": "<your-worker-url>"
+      "LINEAR_CLIENT_ID": "309d1c9f0db5a97bd2fdb84a1ffb60a6",
+      "WORKER_URL": "https://weather-bot.good-work.workers.dev",
     }
   }
