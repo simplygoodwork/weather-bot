@@ -9,7 +9,7 @@
     "kv_namespaces": [
       {
         "binding": "WEATHER_BOT_TOKENS",
-        "id": "<your-kv-namespace-id>",
+        "id": "d5b4319fffc7403094be256b7fe29e25",
       },
     ],
     "observability": {
